@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyCamp: Курс Python в браузере</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
+    <style>
+        :root {
+            --bg-main: #1e1e1e;
+            --bg-panel: #252526;
+            --text-main: #d4d4d4;
+            --text-muted: #858585;
+            --accent: #007acc;
+            --success: #4caf50;
+            --error: #f44336;
+            --border: #333333;
+        }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        header {
+            background-color: var(--bg-panel);
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--accent);
+        }
+        .nav-lessons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .lesson-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: 0.2s;
+        }
+        .lesson-btn.active {
+            background-color: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        .lesson-btn:hover:not(.active) {
+            background-color: #333;
+        }
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .editor-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid var(--border);
+        }
+        .editor-toolbar {
+            background-color: var(--bg-panel);
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        #editor {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 14px;
+        }
+        .console-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #000000;
+        }
+        .console-header {
+            background-color: #111;
+            padding: 8px 12px;
+            border-bottom: 1px solid #333;
+            font-size: 0.85rem;
+            color: #00ff00;
+            flex-shrink: 0;
+        }
+        #console-output {
+            flex: 1;
+            padding: 10px;
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            overflow-y: auto;
+            color: #00ff00;
+            background-color: #000;
+            white-space: pre-wrap;
+        }
+        .lesson-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            overflow: auto;
+        }
+        .lesson-content {
+            padding: 20px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+        }
+        .lesson-content h2 {
+            margin-top: 0;
+            color: var(--text-main);
+            font-size: 1.3rem;
+        }
+        .lesson-content code {
+            background-color: #333;
+            color: #ce9178;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+        }
+        .run-btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: 0.2s;
+            margin-left: 10px;
+        }
+        .run-btn:hover {
+            background-color: #005a99;
+        }
+        .status-msg {
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+        .status-msg.success { background-color: rgba(76, 175, 80, 0.2); color: var(--success); }
+        .status-msg.error { background-color: rgba(244, 67, 54, 0.2); color: var(--error); }
+
+        @media (max-width: 900px) {
+            main { flex-direction: column; }
+            .editor-panel, .lesson-panel { border-right: none; border-bottom: 1px solid var(--border); }
+            .lesson-panel { border-left: none; flex: 1 1 300px; }
+            main { flex-direction: column-reverse; }
+            .editor-panel { border-right: none; border-bottom: 1px solid var(--border); }
+            .lesson-panel { border-left: none; border-top: 1px solid var(--border); }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🐍 PyCamp: Курс Python</h1>
+    <div class="nav-lessons" id="lessons-nav"></div>
+</header>
+
+<main>
+    <div class="editor-panel">
+        <div class="editor-toolbar">
+            <span id="lesson-title">Урок 1: Привет, мир!</span>
+            <button class="run-btn" id="run-code">▶ Выполнить код</button>
+        </div>
+        <div id="editor"></div>
+    </div>
+
+    <div class="console-panel">
+        <div class="console-header">Консоль вывода (stdout / stderr)</div>
+        <div id="console-output"></div>
+    </div>
+
+    <div class="lesson-panel">
+        <div class="lesson-content" id="lesson-content">
+            <h2>Загрузка...</h2>
+            <p>Загрузка интерпретатора Python...</p>
+        </div>
+        <div class="status-msg" id="status-msg"></div>
+    </div>
+</main>
+
+<!-- CodeMirror -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
+<!-- Pyodide (Python в браузере) -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+
+<script>
+// --- Данные курса ---
+const lessons = [
+    {
+        id: 0,
+        title: "Урок 1: Привет, мир!",
+        description: "Первая программа. Функция print() выводит текст в консоль.",
+        task: 'Выведите в консоль фразу "Привет, PyCamp!".',
+        initialCode: 'print("Привет, PyCamp!")',
+        solution: 'print("Привет, PyCamp!")'
+    },
+    {
+        id: 1,
+        title: "Урок 2: Переменные и типы",
+        description: "Сохранение данных в переменные. Основные типы: int, float, str, bool.",
+        task: "Создайте переменную name со своим именем (строка) и age (число). Выведите их через запятую.",
+        initialCode: 'name = "Алексей"\nage = 25\nprint(name, age)',
+        solution: 'name = "Алексей"\nage = 25\nprint(name, age)'
+    },
+    {
+        id: 2,
+        title: "Урок 3: Калькулятор",
+        description: "Арифметические операции: +, -, *, /, // (целочисленное), % (остаток), ** (степень).",
+        task: "Присвойте переменной a значение 10, b значение 3. Выведите их сумму, разность, произведение и остаток от деления.",
+        initialCode: 'a = 10\nb = 3\nprint(a + b)\nprint(a - b)\nprint(a * b)\nprint(a % b)',
+        solution: 'a = 10\nb = 3\nprint(a + b)\nprint(a - b)\nprint(a * b)\nprint(a % b)'
+    },
+    {
+        id: 3,
+        title: "Урок 4: Списки",
+        description: "Списки (list) — упорядоченные изменяемые коллекции.",
+        task: "Создайте список fruits с тремя названиями фруктов. Выведите второй фрукт из списка.",
+        initialCode: 'fruits = ["яблоко", "банан", "груша"]\nprint(fruits[1])',
+        solution: 'fruits = ["яблоко", "банан", "груша"]\nprint(fruits[1])'
+    },
+    {
+        id: 4,
+        title: "Урок 5: Условный оператор if",
+        description: "Принятие решений в коде. Операторы сравнения: ==, !=, >, <, >=, <=.",
+        task: "Если переменная age больше или равна 18, выведите 'Доступ разрешен', иначе — 'Доступ запрещен'.',
+        initialCode: 'age = 20\nif age >= 18:\n    print("Доступ разрешен")\nelse:\n    print("Доступ запрещен")',
+        solution: 'age = 20\nif age >= 18:\n    print("Доступ разрешен")\nelse:\n    print("Доступ запрещен")'
+    },
+    {
+        id: 5,
+        title: "Урок 6: Цикл for",
+        description: "Перебор элементов. Функция range() для генерации чисел.",
+        task: "С помощью цикла for выведите числа от 0 до 4.",
+        initialCode: 'for i in range(5):\n    print(i)',
+        solution: 'for i in range(5):\n    print(i)'
+    },
+    {
+        id: 6,
+        title: "Урок 7: Функции",
+        description: "Переиспользование кода. Ключевое слово def.",
+        task: "Создайте функцию greet(name), которая выводит 'Привет, {name}!'. Вызовите её с аргументом \'Мир\'.',
+        initialCode: 'def greet(name):\n    print(f"Привет, {name}!")\n\ngreet("Мир")',
+        solution: 'def greet(name):\n    print(f"Привет, {name}!")\n\ngreet("Мир")'
+    },
+    {
+        id: 7,
+        title: "Урок 8: Словари",
+        description: "Словари (dict) — коллекции вида ключ-значение.",
+        task: "Создайте словарь user с ключами name и city. Выведите значение по ключу name.',
+        initialCode: 'user = {"name": "Иван", "city": "Москва"}\nprint(user["name"])',
+        solution: 'user = {"name": "Иван", "city": "Москва"}\nprint(user["name"])'
+    },
+    {
+        id: 8,
+        title: "Урок 9: Обработка ошибок",
+        description: "Конструкция try...except для перехвата исключений (например, деления на ноль).",
+        task: "Попробуйте разделить 10 на 0. Перехватите ошибку ZeroDivisionError и выведите \'На ноль делить нельзя!\'.',
+        initialCode: 'try:\n    print(10 / 0)\nexcept ZeroDivisionError:\n    print("На ноль делить нельзя!")',
+        solution: 'try:\n    print(10 / 0)\nexcept ZeroDivisionError:\n    print("На ноль делить нельзя!")'
+    },
+    {
+        id: 9,
+        title: "Урок 10: Работа с файлами",
+        description: "Запись и чтение данных. Ключевое слово with для автоматического закрытия файлов.",
+        task: "Запишите строку \'Успех!\' в файл test.txt, а затем прочитайте его содержимое и выведите в консоль.',
+        initialCode: 'with open("test.txt", "w") as f:\n    f.write("Успех!")\nwith open("test.txt", "r") as f:\n    print(f.read())',
+        solution: 'with open("test.txt", "w") as f:\n    f.write("Успех!")\nwith open("test.txt", "r") as f:\n    print(f.read())'
+    }
+];
+
+// --- Состояние ---
+let currentLesson = 0;
+let pyodide = null;
+
+// --- Элементы DOM ---
+const editorEl = document.getElementById('editor');
+const consoleOutput = document.getElementById('console-output');
+const lessonContent = document.getElementById('lesson-content');
+const runBtn = document.getElementById('run-code');
+const statusMsg = document.getElementById('status-msg');
+const lessonTitle = document.getElementById('lesson-title');
+const lessonsNav = document.getElementById('lessons-nav');
+
+// --- Инициализация редактора ---
+let editor = CodeMirror(editorEl, {
+    mode: "python",
+    theme: "default",
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    keyMap: "sublime",
+    extraKeys: { "Ctrl-Space": "autocomplete" }
+});
+
+// --- Загрузка Pyodide ---
+async function loadPyodide() {
+    lessonContent.innerHTML = '<h2>Инициализация...</h2><p>Загружается среда выполнения Python. Это может занять 10-20 секунд при первом запуске.</p>';
+    try {
+        pyodide = await loadPyodideFromCDN();
+        await pyodide.loadPackage("micropip");
+        lessonContent.innerHTML = renderLesson(lessons[currentLesson]);
+        editor.setValue(lessons[currentLesson].initialCode);
+        runBtn.disabled = false;
+    } catch (e) {
+        lessonContent.innerHTML = `<h2 style="color:red;">Ошибка</h2><p>Не удалось загрузить Python: ${e}</p>`;
+        runBtn.disabled = true;
+    }
+}
+
+// --- Рендеринг уроков ---
+function renderLesson(lesson) {
+    return `
+        <h2>${lesson.title}</h2>
+        <p><strong>Теория:</strong> ${lesson.description}</p>
+        <p><strong>Задание:</strong> ${lesson.task}</p>
+        <p><strong>Подсказка (пример):</strong></p>
+        <pre><code>${lesson.solution.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+    `;
+}
+
+// --- Очистка консоли ---
+function clearConsole() {
+    consoleOutput.innerHTML = '';
+}
+
+// --- Перехват вывода Python ---
+function redirectPythonIO() {
+    let pythonStdout = pyodide.globals.get("print");
+    pyodide.globals.set("print", function (...args) {
+        let text = args.map(arg => String(arg)).join(" ");
+        consoleOutput.insertAdjacentHTML('beforeend', `<div>${text}</div>`);
+        consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    });
+    pyodide.runPython(`
+import io, sys
+sys.stdout = io.StringIO()
+sys.stderr = io.StringIO()
+    `);
+}
+
+// --- Выполнение кода ---
+async function runCode() {
+    if (!pyodide) return;
+    clearConsole();
+    statusMsg.style.display = 'none';
+    
+    // Получаем код из редактора
+    let userCode = editor.getValue();
+    
+    // Перенаправляем вывод перед запуском
+    redirectPythonIO();
+    
+    try {
+        // Сначала очищаем предыдущие файлы (для урока 10)
+        await pyodide.runPython(`
+import os
+if os.path.exists("test.txt"):
+    os.remove("test.txt")
+        `);
+        
+        // Выполняем код пользователя
+        await pyodide.runPython(userCode);
+        
+        // Забираем накопленный вывод из буфера
+        let out = pyodide.globals.get("sys").stdout.getvalue();
+        let err = pyodide.globals.get("sys").stderr.getvalue();
+        
+        if (out) {
+            consoleOutput.insertAdjacentHTML('beforeend', `<div>${out.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`);
+        }
+        if (err) {
+            consoleOutput.insertAdjacentHTML('beforeend', `<div style="color:red;">${err.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`);
+        }
+        
+        // Простая проверка решения (для первых уроков)
+        if (currentLesson === 0 && out.includes("Привет, PyCamp!")) {
+            showStatus("Отлично! Задание выполнено.", "success");
+        }
+        if (currentLesson === 1 && out.includes("Алексей") && out.includes("25")) {
+            showStatus("Отлично! Переменные выведены.", "success");
+        }
+
+    } catch (e) {
+        consoleOutput.insertAdjacentHTML('beforeend', `<div style="color:red;">Ошибка выполнения: ${e.message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`);
+    }
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+function showStatus(message, type) {
+    statusMsg.textContent = message;
+    statusMsg.className = `status-msg ${type}`;
+    statusMsg.style.display = 'block';
+    setTimeout(() => statusMsg.style.display = 'none', 3000);
+}
+
+// --- Навигация ---
+function renderNav() {
+    lessonsNav.innerHTML = '';
+    lessons.forEach(lesson => {
+        const btn = document.createElement('button');
+        btn.className = 'lesson-btn';
+        if (lesson.id === currentLesson) btn.classList.add('active');
+        btn.textContent = lesson.title.replace('Урок ', '');
+        btn.onclick = () => changeLesson(lesson.id);
+        lessonsNav.appendChild(btn);
+    });
+}
+
+function changeLesson(index) {
+    currentLesson = index;
+    const lesson = lessons[currentLesson];
+    lessonTitle.textContent = lesson.title;
+    lessonContent.innerHTML = renderLesson(lesson);
+    editor.setValue(lesson.initialCode);
+    renderNav();
+    clearConsole();
+    showStatus("Выбрано: " + lesson.title, "success");
+}
+
+// --- Запуск приложения ---
+loadPyodide();
+runBtn.addEventListener('click', runCode);
+</script>
+
+</body>
+</html>
